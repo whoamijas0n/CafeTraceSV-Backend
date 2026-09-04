@@ -14,21 +14,20 @@
 
 ## 🛠️ 2. Arquitectura Global y Stack Tecnológico
 
-La solución opera bajo una arquitectura desacoplada **API REST Asíncrona ↔ Base de Datos Espacial ↔ SPA Frontend**.
+La solución opera bajo una arquitectura desacoplada **API REST Asíncrona ↔ Base de Datos Espacial**, enfocada exclusivamente en el backend para maximizar el tiempo disponible en la hackatón. El consumo desde cualquier cliente (web, móvil o herramienta interna) se hace vía la API REST/JSON documentada; el frontend queda fuera del alcance de este documento y será decidido/implementado por separado según el tiempo disponible.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                       PORTAL WEB (FRONTEND CLIENT)                      │
-│      Next.js 14 (App Router) + TypeScript + Tailwind CSS + Lucide Icons │
-│       MapLibre GL JS (Visor Cartográfico) + Turf.js (Geometría Client)   │
+│                    CLIENTE (fuera de alcance de este doc)               │
+│         Cualquier consumidor de la API REST / JSON / GeoJSON            │
 └────────────────────────────────────┬────────────────────────────────────┘
                                      │
                              REST API / JSON / GeoJSON
                                      │
 ┌────────────────────────────────────▼────────────────────────────────────┐
 │                       BACKEND CORE (DOMINIO DEL AGENTE)                 │
-│      FastAPI (Python 3.11+) + Pydantic v2 + SQLAlchemy 2.0 (Async)      │
-│      GeoAlchemy2 + Shapely (Motor GIS) + JWT/Argon2id (Seguridad)       │
+│      FastAPI (Python 3.11+) + Pydantic v2 + asyncpg (SQL directo)       │
+│      Shapely (Motor GIS) + JWT/Argon2id (Seguridad)                     │
 └────────────────────────────────────┬────────────────────────────────────┘
                                      │
                             PostGIS Spatial Queries
@@ -45,11 +44,10 @@ La solución opera bajo una arquitectura desacoplada **API REST Asíncrona ↔ B
 | :--- | :--- | :--- |
 | **Backend API** | **FastAPI (Python 3.11+)** | Routing asíncrono, inyección de dependencias, endpoints OpenAPI/Swagger interactivos en `/docs`. |
 | **Validación de Datos** | **Pydantic v2** | Serialización estricta, parseo de esquemas GeoJSON RFC 7946, validación de coordenadas y DTOs. |
-| **ORM & GIS Backend** | **SQLAlchemy 2.0 + GeoAlchemy2 + asyncpg** | Mapeo objeto-relacional asíncrono con soporte nativo de tipos `Geometry(Polygon, 4326)`. |
+| **Acceso a Datos** | **asyncpg (SQL directo, sin ORM)** | Consultas SQL parametrizadas escritas a mano (`$1, $2, ...`), sin capa de mapeo objeto-relacional. Soporte nativo de tipos geométricos de PostGIS vía funciones SQL (`ST_GeomFromGeoJSON`, `ST_AsGeoJSON`, `ST_Area`). |
 | **Base de Datos** | **PostgreSQL + PostGIS (Supabase)** | Almacenamiento geoespacial, cálculo geodésico de áreas con `ST_Area(geography)`, exportación nativa `ST_AsGeoJSON`. |
 | **Autenticación & Auth** | **JWT (python-jose) + Passlib (Argon2id / Bcrypt)** | Tokens Bearer en cabecera `Authorization: Bearer <token>`, roles: `ADMIN`, `PRODUCTOR`, `TECNICO`. |
-| **Frontend (Referencia)** | **Next.js 14 + TypeScript** | Consumirá los endpoints. Todos los contratos deben tener tipado predecible (evitar campos dinámicos no tipados). |
-| **Mapas Frontend** | **MapLibre GL JS + Turf.js** | Requiere coordenadas en formato GeoJSON `[longitud, latitud]`. |
+| **Frontend** | *(fuera de alcance / a definir por el equipo)* | Consumirá los endpoints REST tal cual se documentan aquí. No se asume ningún framework específico. |
 
 ---
 
@@ -60,7 +58,7 @@ La solución opera bajo una arquitectura desacoplada **API REST Asíncrona ↔ B
    - En base de datos la columna es `GEOMETRY(POLYGON, 4326)`.
 2. **Orden de Coordenadas (Estándar GeoJSON RFC 7946)**:
    - Las coordenadas deben ser estrictamente `[longitud, latitud]` (X, Y).
-   - **NUNCA** invertir a `[latitud, longitud]`, ya que romperá el renderizado en MapLibre GL y los cálculos de PostGIS.
+   - **NUNCA** invertir a `[latitud, longitud]`, ya que romperá el renderizado en cualquier visor de mapas y los cálculos de PostGIS.
    - El Salvador se ubica aproximadamente en: Longitud `[-90.15 a -87.68]`, Latitud `[13.15 a 14.45]`.
 3. **Polígonos Válidos y Cerrados**:
    - El primer y el último vértice de un polígono deben ser **idénticos** (ej: 4 coordenadas representan un triángulo cerrado).
@@ -69,7 +67,7 @@ La solución opera bajo una arquitectura desacoplada **API REST Asíncrona ↔ B
 
 ---
 
-## 🗄️ 4. Esquema Relacional y Modelo PostGIS (DDL)
+## 🗄️ 4. Esquema Relacional y Modelo PostGIS (DDL — Campos en Español)
 
 ```sql
 -- Habilitar extensión espacial y de UUIDs
@@ -77,73 +75,74 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 
 -- 1. USUARIOS Y AUTENTICACIÓN
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    hashed_password VARCHAR(255) NOT NULL,
-    firt_name VARCHAR(150) NOT NULL,
-    last_name VARCHAR(150) NOT NULL,
-    role VARCHAR(30) NOT NULL DEFAULT 'PRODUCTOR', -- 'ADMIN', 'PRODUCTOR', 'TECNICO'
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE usuarios (
+    id_usuario UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    correo VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(80) NOT NULL,
+    nombres VARCHAR(50) NOT NULL,
+    apellidos VARCHAR(50) NOT NULL,
+    rol VARCHAR(30) NOT NULL DEFAULT 'PRODUCTOR', -- 'ADMIN', 'PRODUCTOR', 'TECNICO'
+    activo BOOLEAN DEFAULT TRUE,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+
 -- 2. PRODUCTORES
-CREATE TABLE producers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    document_id VARCHAR(50) NOT NULL, -- DUI / NIT / Pasaporte
-    phone VARCHAR(30),
-    department VARCHAR(50) NOT NULL,   -- ej: Usulután, Santa Ana
-    municipality VARCHAR(80) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE productores (
+    id_productor UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id_usuario UUID UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
+    documento_identidad VARCHAR(50) NOT NULL, -- DUI / NIT / Pasaporte
+    telefono VARCHAR(30),
+    departamento VARCHAR(50) NOT NULL,   -- ej: Usulután, Santa Ana
+    municipio VARCHAR(80) NOT NULL,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 3. FINCAS
-CREATE TABLE farms (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    producer_id UUID NOT NULL REFERENCES producers(id) ON DELETE CASCADE,
-    name VARCHAR(120) NOT NULL,
-    department VARCHAR(50) NOT NULL,
-    municipality VARCHAR(80) NOT NULL,
-    canton_village VARCHAR(120),
-    altitude_masl INTEGER, -- Metros sobre el nivel del mar
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE fincas (
+    id_finca UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    productor_id UUID NOT NULL REFERENCES productores(id) ON DELETE CASCADE,
+    nombre VARCHAR(120) NOT NULL,
+    departamento VARCHAR(50) NOT NULL,
+    municipio VARCHAR(80) NOT NULL,
+    canton_caserio VARCHAR(120),
+    altitud_msnm INTEGER, -- Metros sobre el nivel del mar
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 4. PARCELAS (CON POLÍGONO POSTGIS)
-CREATE TABLE plots (
+CREATE TABLE parcelas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    farm_id UUID NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    coffee_variety VARCHAR(60) NOT NULL, -- Bourbon, Pacamara, Cuscatleco, Pacas, Geisha
-    area_hectares NUMERIC(10, 4) NOT NULL,
-    geometry GEOMETRY(POLYGON, 4326) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    finca_id UUID NOT NULL REFERENCES fincas(id) ON DELETE CASCADE,
+    nombre VARCHAR(100) NOT NULL,
+    variedad_cafe VARCHAR(60) NOT NULL, -- Bourbon, Pacamara, Cuscatleco, Pacas, Geisha
+    area_hectareas NUMERIC(10, 4) NOT NULL,
+    geometria GEOMETRY(POLYGON, 4326) NOT NULL,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_plots_geometry ON plots USING GIST(geometry);
+CREATE INDEX idx_parcelas_geometria ON parcelas USING GIST(geometria);
 
 -- 5. COSECHAS
-CREATE TABLE harvests (
+CREATE TABLE cosechas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    plot_id UUID NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
-    harvest_date DATE NOT NULL,
-    weight_kg NUMERIC(10, 2) NOT NULL,
-    moisture_percentage NUMERIC(5, 2),
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    parcela_id UUID NOT NULL REFERENCES parcelas(id) ON DELETE CASCADE,
+    fecha_cosecha DATE NOT NULL,
+    peso_kg NUMERIC(10, 2) NOT NULL,
+    porcentaje_humedad NUMERIC(5, 2),
+    notas TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 6. LOTES DE CAFÉ Y TRAZABILIDAD
-CREATE TABLE coffee_lots (
+CREATE TABLE lotes_cafe (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    harvest_id UUID NOT NULL REFERENCES harvests(id) ON DELETE CASCADE,
-    lot_code VARCHAR(60) UNIQUE NOT NULL, -- ej: SV-USU-2026-LOT01
+    cosecha_id UUID NOT NULL REFERENCES cosechas(id) ON DELETE CASCADE,
+    codigo_lote VARCHAR(60) UNIQUE NOT NULL, -- ej: SV-USU-2026-LOT01
     qr_uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    processing_method VARCHAR(50) NOT NULL, -- Lavado, Honey, Natural
-    cupping_score NUMERIC(5, 2),
-    export_ready BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    metodo_procesamiento VARCHAR(50) NOT NULL, -- Lavado, Honey, Natural
+    puntaje_catacion NUMERIC(5, 2),
+    listo_exportacion BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
@@ -151,31 +150,23 @@ CREATE TABLE coffee_lots (
 
 ## 📡 5. Especificación de Contratos API REST (Endpoints Clave)
 
-Todos los endpoints responden bajo el prefijo `/api/v1`.
+Todos los endpoints responden bajo el prefijo `/api/v1`. Los cuerpos de petición/respuesta usan los mismos nombres de campo en español que la base de datos, para evitar una capa extra de mapeo/traducción.
 
 ### 5.1. Autenticación (`/api/v1/auth`)
-* `POST /auth/register` $
-ightarrow$ `{ email, password, full_name, role }` $
-ightarrow$ Retorna `UserOut`.
-* `POST /auth/login` $
-ightarrow$ Formulario OAuth2 `username` (email) + `password` $
-ightarrow$ Retorna `{ access_token, token_type: "bearer" }`.
-* `GET /auth/me` (Protected) $
-ightarrow$ Datos del usuario actual.
+* `POST /auth/register` → `{ correo, contrasena, nombre, apellido, rol }` → Retorna `UsuarioOut`.
+* `POST /auth/login` → Formulario OAuth2 `username` (correo) + `password` (contraseña) → Retorna `{ access_token, token_type: "bearer" }`.
+* `GET /auth/me` (Protegido) → Datos del usuario actual.
 
-### 5.2. Fincas y Parcelas Espaciales (`/api/v1/farms`, `/api/v1/plots`)
-* `POST /farms` $
-ightarrow$ Crear finca asociada al productor autenticado.
-* `GET /farms` $
-ightarrow$ Listar fincas del productor con conteo de parcelas y estado EUDR.
-* `POST /plots` $
-ightarrow$ **Creación Espacial de Parcela**:
+### 5.2. Fincas y Parcelas Espaciales (`/api/v1/fincas`, `/api/v1/parcelas`)
+* `POST /fincas` → Crear finca asociada al productor autenticado.
+* `GET /fincas` → Listar fincas del productor con conteo de parcelas y estado EUDR.
+* `POST /parcelas` → **Creación Espacial de Parcela**:
   ```json
-  // Request Body
+  // Cuerpo de la petición
   {
-    "farm_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    "name": "Tablón Los Cedros",
-    "coffee_variety": "Bourbon",
+    "finca_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "nombre": "Tablón Los Cedros",
+    "variedad_cafe": "Bourbon",
     "geojson": {
       "type": "Polygon",
       "coordinates": [
@@ -190,23 +181,22 @@ ightarrow$ **Creación Espacial de Parcela**:
     }
   }
   ```
-  *Lógica Backend*:
-  1. Validar polígono cerrado.
-  2. Guardar geometría en PostGIS con `ST_GeomFromGeoJSON`.
-  3. Calcular automáticamente `area_hectares` con `ST_Area(geography) / 10000`.
-  4. Retornar `PlotOut` con ID, nombre, área calculada y GeoJSON formateado.
+  *Lógica Backend (SQL directo, sin ORM)*:
+  1. Validar polígono cerrado (a nivel de aplicación, con Shapely o validación manual).
+  2. Guardar geometría en PostGIS con una consulta parametrizada usando `ST_GeomFromGeoJSON($n)`.
+  3. Calcular automáticamente `area_hectareas` con `ST_Area(geometria::geography) / 10000` dentro de la misma consulta `INSERT ... RETURNING`.
+  4. Retornar `ParcelaOut` con id, nombre, área calculada y GeoJSON formateado.
 
-* `GET /plots/{id}/geojson` $
-ightarrow$ Retorna un **Feature GeoJSON (RFC 7946)**:
+* `GET /parcelas/{id}/geojson` → Retorna un **Feature GeoJSON (RFC 7946)**:
   ```json
   {
     "type": "Feature",
     "properties": {
-      "plot_id": "c1f77d34-...",
-      "farm_name": "Finca El Espino",
-      "producer_name": "Jason Velásquez",
-      "variety": "Bourbon",
-      "area_hectares": 3.72
+      "parcela_id": "c1f77d34-...",
+      "finca_nombre": "Finca El Espino",
+      "productor_nombre": "Jason Velásquez",
+      "variedad": "Bourbon",
+      "area_hectareas": 3.72
     },
     "geometry": {
       "type": "Polygon",
@@ -215,8 +205,8 @@ ightarrow$ Retorna un **Feature GeoJSON (RFC 7946)**:
   }
   ```
 
-### 5.3. Trazabilidad Pública y QR (`/api/v1/trace`)
-* `GET /trace/{qr_uuid}` (**Público - Sin Autenticación**):
+### 5.3. Trazabilidad Pública y QR (`/api/v1/trazabilidad`)
+* `GET /trazabilidad/{qr_uuid}` (**Público - Sin Autenticación**):
   - Retorna el expediente completo de trazabilidad:
     - Datos del Productor (Nombre, Municipio, Departamento).
     - Datos de la Finca (Nombre, Altitud).
@@ -225,27 +215,25 @@ ightarrow$ Retorna un **Feature GeoJSON (RFC 7946)**:
     - Código de Lote y sello digital de verificación.
 
 ### 5.4. Motor de Preparación EUDR (`/api/v1/eudr`)
-* `GET /eudr/farms/{farm_id}/status` $
-ightarrow$ Evalúa las siguientes reglas de negocio y devuelve:
+* `GET /eudr/fincas/{finca_id}/estado` → Evalúa las siguientes reglas de negocio y devuelve:
   ```json
   {
-    "farm_id": "9b1deb4d-...",
-    "readiness_score": 85,
-    "status": "APTO_CON_OBSERVACIONES", // "COMPLETO", "INCOMPLETO", "CRITICO"
-    "checklist": {
-      "producer_data_complete": true,
-      "plots_georeferenced": true,
-      "polygons_valid": true,
-      "harvests_registered": true,
-      "has_recent_harvest": false
+    "finca_id": "9b1deb4d-...",
+    "puntaje_preparacion": 85,
+    "estado": "APTO_CON_OBSERVACIONES", // "COMPLETO", "INCOMPLETO", "CRITICO"
+    "lista_verificacion": {
+      "datos_productor_completos": true,
+      "parcelas_georreferenciadas": true,
+      "poligonos_validos": true,
+      "cosechas_registradas": true,
+      "tiene_cosecha_reciente": false
     },
-    "missing_requirements": [
+    "requisitos_faltantes": [
       "Falta registrar fecha de cosecha para la parcela Tablón Los Cedros"
     ]
   }
   ```
-* `GET /eudr/farms/{farm_id}/export-geojson` $
-ightarrow$ Descarga directa de archivo `FeatureCollection` con todos los metadatos exigidos por importadores europeos.
+* `GET /eudr/fincas/{finca_id}/exportar-geojson` → Descarga directa de archivo `FeatureCollection` con todos los metadatos exigidos por importadores europeos.
 
 ---
 
@@ -260,36 +248,39 @@ backend/
 │   │       ├── api.py              # Enrutador principal de endpoints v1
 │   │       └── endpoints/
 │   │           ├── auth.py         # Login, Registro, JWT
-│   │           ├── producers.py    # CRUD de Productores
-│   │           ├── farms.py        # CRUD de Fincas
-│   │           ├── plots.py        # Parcelas, PostGIS, GeoJSON
-│   │           ├── harvests.py     # Cosechas y Lotes
-│   │           ├── trace.py        # Trazabilidad pública por QR
+│   │           ├── productores.py  # CRUD de Productores
+│   │           ├── fincas.py       # CRUD de Fincas
+│   │           ├── parcelas.py     # Parcelas, PostGIS, GeoJSON
+│   │           ├── cosechas.py     # Cosechas y Lotes
+│   │           ├── trazabilidad.py # Trazabilidad pública por QR
 │   │           └── eudr.py         # Motor de preparación EUDR & exportador
 │   ├── core/
 │   │   ├── config.py               # Settings (Pydantic BaseSettings, CORS, DB_URL)
 │   │   └── security.py             # Hasheo de contraseñas (Passlib) y JWT logic
 │   ├── db/
-│   │   ├── base.py                 # Declarative Base de SQLAlchemy
-│   │   └── session.py              # async_sessionmaker & engine
-│   ├── models/                     # Modelos ORM SQLAlchemy + GeoAlchemy2
-│   │   ├── user.py
-│   │   ├── producer.py
-│   │   ├── farm.py
-│   │   ├── plot.py
-│   │   ├── harvest.py
-│   │   └── lot.py
-│   ├── schemas/                    # Modelos Pydantic (Request/Response DTOs)
-│   │   ├── user.py
-│   │   ├── farm.py
-│   │   ├── plot.py                 # Validación GeoJSON y coordenadas
-│   │   ├── trace.py
+│   │   ├── pool.py                 # Pool de conexiones asyncpg (crear/cerrar en startup/shutdown)
+│   │   └── queries/                # SQL directo agrupado por entidad, sin ORM
+│   │       ├── usuarios_sql.py
+│   │       ├── productores_sql.py
+│   │       ├── fincas_sql.py
+│   │       ├── parcelas_sql.py
+│   │       ├── cosechas_sql.py
+│   │       └── lotes_cafe_sql.py
+│   ├── schemas/                    # Modelos Pydantic (Request/Response DTOs, campos en español)
+│   │   ├── usuario.py
+│   │   ├── finca.py
+│   │   ├── parcela.py              # Validación GeoJSON y coordenadas
+│   │   ├── trazabilidad.py
 │   │   └── eudr.py
 │   ├── services/                   # Lógica de negocio pura
 │   │   ├── gis_service.py          # Transformaciones geométricas y cálculos
 │   │   └── eudr_service.py         # Evaluador de cumplimiento normativo
 │   └── main.py                     # Instancia FastAPI, Middlewares, CORS
-├── alembic/                        # Migraciones de base de datos
+├── db/
+│   └── migraciones/                # Scripts SQL versionados a mano (sin Alembic/ORM)
+│       ├── 0001_init.sql
+│       ├── 0002_indices_geoespaciales.sql
+│       └── ...
 ├── tests/                          # Tests unitarios y de integración de endpoints
 ├── Dockerfile                      # Contenedor optimizado de producción
 ├── docker-compose.yml              # Configuración local con PostgreSQL/PostGIS
@@ -302,15 +293,16 @@ backend/
 ## ⚙️ 7. Convenciones de Código y Buenas Prácticas Backend
 
 1. **Gestión de CORS**:
-   - Configurar `CORSMiddleware` en `main.py` para permitir `http://localhost:3000` (Next.js local) y el dominio de Vercel en producción.
-2. **Manejo de Geometrías con GeoAlchemy2 y Pydantic**:
-   - Usar `geoalchemy2.shape.to_shape` o funciones nativas SQL (`ST_AsGeoJSON`) para serializar geometrías hacia el cliente.
+   - Configurar `CORSMiddleware` en `main.py` con una lista de orígenes permitidos definida en `config.py` (variable de entorno), sin asumir un framework de frontend específico.
+2. **Manejo de Geometrías con SQL directo (asyncpg)**:
+   - Usar funciones SQL nativas (`ST_AsGeoJSON`, `ST_GeomFromGeoJSON`, `ST_Area`) directamente en las consultas, sin capa ORM intermedia.
    - En schemas de entrada, utilizar `geojson_pydantic` o schemas Pydantic con estructura `{ "type": "Polygon", "coordinates": List[List[List[float]]] }`.
+   - Todas las consultas deben ser **parametrizadas** (`$1, $2, ...` con asyncpg) para evitar inyección SQL; nunca construir SQL por concatenación de strings.
 3. **Manejo de Errores HTTP**:
    - Lanzar siempre `HTTPException(status_code=4xx, detail="Mensaje descriptivo")`.
    - Polígonos no cerrados o de menos de 4 vértices deben retornar `422 Unprocessable Entity` con explicación clara.
 4. **Seed Data para El Salvador**:
-   - Proveer un script `scripts/seed_data.py` con datos de ejemplo realistas de zonas cafetaleras:
+   - Proveer un script `scripts/seed_data.py` (con SQL directo vía asyncpg) con datos de ejemplo realistas de zonas cafetaleras:
      - Departamentos: *Usulután, Santa Ana, Sonsonate, Ahuachapán*.
      - Variedades: *Bourbon, Pacamara, Cuscatleco, Pacas, Geisha*.
      - Rangos de altitud: *900 a 1600 msnm*.
@@ -320,7 +312,8 @@ backend/
 ## 🚀 8. Instrucciones de Operación para el LLM en Modo Agente
 
 Cuando se te solicite implementar código para este backend:
-1. **Verifica siempre la compatibilidad del contrato** con el frontend Next.js (nombres de llaves en `camelCase` o `snake_case` consistentes; preferir `snake_case` en API estándar o mapear limpiamente).
-2. **Prioriza la robustez de las consultas PostGIS** antes de añadir librerías pesadas externas.
-3. **Mantén el foco en el MVP de 6 días**: No añadas microservicios, brokers de mensajería (Kafka/RabbitMQ) ni bases de datos NoSQL. Toda la persistencia espacial y relacional se resuelve eficientemente en PostgreSQL + PostGIS.
-4. **Asegura endpoints idempotentes y documentados** con sus respectivos tipos de retorno para que Swagger UI (`/docs`) sirva como documentación viva para el desarrollador frontend.
+1. **Mantén consistencia total en los nombres de campo**: todo en `snake_case` y en **español**, tanto en la base de datos como en los DTOs de Pydantic y las respuestas JSON de la API. No introduzcas nombres en inglés salvo términos técnicos sin traducción natural (ej. `id`, `qr_uuid`).
+2. **No uses ORM**: todo el acceso a datos se hace con `asyncpg` y SQL escrito a mano, parametrizado. No introduzcas SQLAlchemy, GeoAlchemy2, Tortoise ni ningún otro ORM.
+3. **Prioriza la robustez de las consultas PostGIS** antes de añadir librerías pesadas externas.
+4. **Mantén el foco en el MVP de 6 días**: No añadas microservicios, brokers de mensajería (Kafka/RabbitMQ), bases de datos NoSQL, ni asumas un framework de frontend concreto. Toda la persistencia espacial y relacional se resuelve eficientemente en PostgreSQL + PostGIS con SQL directo.
+5. **Asegura endpoints idempotentes y documentados** con sus respectivos tipos de retorno para que Swagger UI (`/docs`) sirva como documentación viva para el equipo.

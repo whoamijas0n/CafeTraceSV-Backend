@@ -3,7 +3,13 @@ from typing import Any, Dict
 from fastapi import FastAPI, status
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-from core.config import settings
+from app.core.config import settings
+
+# No es necesario por ahora 
+#from api.v1.api import api_router
+
+# Libreruia de orm no necesaria 
+#from db.session import async_engine
 
 # OpenAPI Tags metadata for structured Swagger documentation
 tags_metadata = [
@@ -74,7 +80,7 @@ autenticacion de usuario login, jwt
 
 @app.get("/")
 def root():
-    return {"message": "🚀 CaféTrace SV API funcionando"}
+    return {"message": "CaféTrace SV API funcionando"}
 
 
 @app.post("/api/auth/register")
@@ -179,6 +185,8 @@ async def health_check() -> Dict[str, Any]:
     db_status = "connected"
     postgis_version = "unknown"
     
+    
+    # Comentado para uso posteruior cuando se tenga la conexion
     """
     try:
         async with async_engine.connect() as conn:
@@ -199,10 +207,12 @@ async def health_check() -> Dict[str, Any]:
         "database": db_status,
         "postgis_version": postgis_version,
     }
+    
+#app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
-## SOLO ES PRUEBA PARA VERIFICAR QUE EL SERVIDOR CORRA, NO ES NECESARIO PARA LA API FINAL
+# Donde corre el sertvidor uvicorn, se puede cambiar el puerto y host en caso de ser necesario
 if __name__ == "__main__":
-    print("🚀 Servidor corriendo en: http://localhost:8000")
-    print("📚 Docs: http://localhost:8000/docs")
+    print("Servidor corriendo en: http://localhost:8000")
+    print("Swagger docs: http://localhost:8000/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)
