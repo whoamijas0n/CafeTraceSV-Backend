@@ -254,7 +254,22 @@ Así, aunque tu amigo tenga su propia organización con sus propios productores 
 ## Avances esperados para viernes
 
 - conexion bd con python
-- inicio de sesion con jwt
 - api lista para pruebas
+- inicio de sesion con jwt
 - maqueta inicial lista
 - funcionalidades maplibre en proceso
+
+
+## Avances esperados para sabado
+
+- api lista para rest completo
+- conexion con el backend api
+- desarollo frontend crud
+- integracion de deforestacion en capa
+- Integracion de qr (generador de carga segun la ley europea)
+
+
+## Avances esperados para el domingo 
+- Testing y pendtesting 
+- Integraciones de seguridad
+- Puluir lo mas posible para la entrega
