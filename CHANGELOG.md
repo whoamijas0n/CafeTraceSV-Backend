@@ -249,3 +249,12 @@ Así, aunque tu amigo tenga su propia organización con sus propios productores 
 | `parcelas` (con `geometria`) | Al dibujar el polígono | Una vez por parcela — **nunca se vuelve a dibujar** |
 | `cosechas` | Cada corte/temporada | Sí, recurrente |
 | `lotes_cafe` (con `qr_uuid`) | Al armar un lote para exportación | Sí, uno por lote comercial |
+
+
+## Avances esperados para viernes
+
+- conexion bd con python
+- inicio de sesion con jwt
+- api lista para pruebas
+- maqueta inicial lista
+- funcionalidades maplibre en proceso
