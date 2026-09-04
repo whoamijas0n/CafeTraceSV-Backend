@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
 from typing import Any, Dict
 from fastapi import FastAPI, status
-import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-from core.config import settings
+from sqlalchemy import text
+import uvicorn
+
+from app.api.v1.api import api_router
+from app.core.config import settings
+from app.db.session import async_engine
 
 # OpenAPI Tags metadata for structured Swagger documentation
 tags_metadata = [
@@ -65,105 +69,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API v1 modular router
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
-""""
-auth/
-autenticacion de usuario login, jwt
 
-"""
-
-@app.get("/")
-def root():
+@app.get(
+    "/",
+    tags=["5. Monitoreo del Sistema"],
+    summary="Endpoint raíz de bienvenida",
+)
+def root() -> Dict[str, str]:
     return {"message": "🚀 CaféTrace SV API funcionando"}
 
-
-@app.post("/api/auth/register")
-def register():
-    return {"Bienvenido al registro"}
-
-
-@app.post("/api/auth/login")
-def login():
-    return {"Bienvenido al login"}
-
-@app.get("/api/auth/me")
-def get_current_user():
-    return {"Información del usuario autenticado"}
-
-
-""""
-producers/
-productores de café, cooperativas, fincas, parcelas
-
-"""
-
-@app.post("/api/producers")
-def create_producer():
-    return {"message": "Productor creado exitosamente"}
-
-
-@app.get("/api/producers/me")
-def get_current_producer():
-    return {"message": "Información del productor autenticado"}
-
-    
-
-@app.put("/api/producers/me")
-def update_current_producer():
-    return {"message": "Productor actualizado exitosamente"}
-
-
-@app.get("/api/producers/{id}")
-def get_producer(id: str):
-    return {"message": f"Información del productor con ID {id}"}
-
-"""
-farms/
-fincas cafetaleras, parcelas, trazabilidad geoespacial
-
-"""
-
-@app.post("/api/farms")
-def create_farm():
-    return {"message": "Finca creada exitosamente"}
-
-
-@app.get("/api/farms/")
-def get_farms():
-    return {"message": "Lista de fincas"}
-
-
-@app.get("/api/farms/{id}")
-def get_farm(id: str):
-    return {"message": f"Información de la finca con ID {id}"}
-
-
-@app.put("/api/farms/{id}")
-def update_farm(id: str):
-    return {"message": f"Finca con ID {id} actualizada exitosamente"}   
-
-
-@app.delete("/api/farms/{id}")
-def delete_farm(id: str):
-    return {"message": f"Finca con ID {id} eliminada exitosamente"}
-
-
-
-@app.post("/api/plots")
-def create_plot():
-    return {"message": "Parcela creada exitosamente"}
-
-# Aqui obtenemos toda la infomacion necesaria sin necesidad de multiples consultas
-@app.get("/api/plots/farm")
-def get_plots():
-    return {"message": "Lista de parcelas de una granja"}
-
-# En el caso de obtener el featureColletion ya lo tendremos en lo que seria geojson en la consulta total
-
-# Tanto en visual se elimina la geometria designada como en bd (nose si es necesario algo de vitacora)
-@app.delete("/api/plots/{id}")
-def delete_plot(id: str):
-    return {"message": f"Parcela con ID {id} eliminada exitosamente"}
 
 @app.get(
     "/health",
@@ -178,8 +95,7 @@ async def health_check() -> Dict[str, Any]:
     """
     db_status = "connected"
     postgis_version = "unknown"
-    
-    """
+
     try:
         async with async_engine.connect() as conn:
             result = await conn.execute(text("SELECT PostGIS_Version();"))
@@ -187,9 +103,8 @@ async def health_check() -> Dict[str, Any]:
             if row:
                 postgis_version = str(row[0])
     except Exception as e:
-        db_status = f"error: {str(e)}" 
-    """
-    
+        db_status = f"error: {str(e)}"
+
     return {
         "status": "healthy" if "error" not in db_status else "degraded",
         "service": settings.PROJECT_NAME,
@@ -201,7 +116,6 @@ async def health_check() -> Dict[str, Any]:
     }
 
 
-## SOLO ES PRUEBA PARA VERIFICAR QUE EL SERVIDOR CORRA, NO ES NECESARIO PARA LA API FINAL
 if __name__ == "__main__":
     print("🚀 Servidor corriendo en: http://localhost:8000")
     print("📚 Docs: http://localhost:8000/docs")

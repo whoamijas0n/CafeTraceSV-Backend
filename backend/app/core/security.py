@@ -32,9 +32,11 @@ def create_access_token(
     subject: Union[str, Any],
     expires_delta: Optional[timedelta] = None,
     extra_claims: Optional[dict[str, Any]] = None,
+    email: Optional[str] = None,
+    role: Optional[str] = None,
 ) -> str:
     """
-    Creates an encoded JSON Web Token (JWT) with subject, expiration and optional claims.
+    Creates an encoded JSON Web Token (JWT) with subject, expiration and claims (sub, iat, exp, email, role).
     """
     now = datetime.now(timezone.utc)
     if expires_delta:
@@ -48,6 +50,11 @@ def create_access_token(
         "exp": int(expire.timestamp()),
     }
 
+    if email:
+        to_encode["email"] = email
+    if role:
+        to_encode["role"] = role
+
     if extra_claims:
         to_encode.update(extra_claims)
 
@@ -57,6 +64,7 @@ def create_access_token(
         algorithm=settings.ALGORITHM,
     )
     return encoded_jwt
+
 
 
 def decode_access_token(token: str) -> Optional[dict[str, Any]]:

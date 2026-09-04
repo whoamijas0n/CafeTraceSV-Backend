@@ -18,8 +18,8 @@ class UserBase(BaseModel):
     """
     Base user schema with common attributes.
     """
-    email: EmailStr = Field(..., description="Unique email address", example="productor@cafetrace.sv")
-    full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", example="Carlos Antonio Ramos")
+    email: EmailStr = Field(..., description="Unique email address", examples=["productor@cafetrace.sv"])
+    full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", examples=["Carlos Antonio Ramos"])
     role: RoleEnum = Field(default=RoleEnum.PRODUCTOR, description="Assigned user role")
     is_active: bool = Field(default=True, description="Account active status")
 
@@ -28,9 +28,9 @@ class UserCreate(BaseModel):
     """
     Schema for creating a new user.
     """
-    email: EmailStr = Field(..., description="Unique email address", example="productor@cafetrace.sv")
-    full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", example="Carlos Antonio Ramos")
-    password: str = Field(..., min_length=8, max_length=100, description="Plain text password (min 8 characters)", example="CafeSV2026!Pass")
+    email: EmailStr = Field(..., description="Unique email address", examples=["productor@cafetrace.sv"])
+    full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", examples=["Carlos Antonio Ramos"])
+    password: str = Field(..., min_length=8, max_length=100, description="Plain text password (min 8 characters)", examples=["CafeSV2026!Pass"])
     role: RoleEnum = Field(default=RoleEnum.PRODUCTOR, description="User role")
 
 
@@ -69,6 +69,8 @@ class TokenPayload(BaseModel):
     Decoded JWT token payload schema.
     """
     sub: Optional[str] = None
+    email: Optional[str] = None
     role: Optional[str] = None
+    full_name: Optional[str] = None
     iat: Optional[int] = None
     exp: Optional[int] = None

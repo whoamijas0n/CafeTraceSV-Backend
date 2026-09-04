@@ -48,7 +48,7 @@ async def register(
     )
 
     db.add(new_user)
-    await db.flush()
+    await db.commit()
     await db.refresh(new_user)
 
     return new_user
@@ -82,7 +82,7 @@ async def login(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo en el sistema.",
+            detail="Usuario inactivo",
         )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
