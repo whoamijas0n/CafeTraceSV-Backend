@@ -84,9 +84,9 @@ python backend/init_db.py
 ```
 
 ### 7. Ejecutar el Servidor
-Inicia la aplicación utilizando `uvicorn`:
+Inicia la aplicación utilizando `uvicorn` desde /backend:
 ```bash
-uvicorn backend.app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
 El servidor estará disponible en: `http://localhost:8000`
