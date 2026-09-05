@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List
 from geoalchemy2 import Geometry
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -9,6 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.farm import Farm
+    from app.models.harvest import Harvest
 
 
 class Plot(Base):
@@ -66,6 +67,12 @@ class Plot(Base):
     farm: Mapped["Farm"] = relationship(
         "Farm",
         back_populates="plots",
+    )
+    harvests: Mapped[List["Harvest"]] = relationship(
+        "Harvest",
+        back_populates="plot",
+        cascade="all, delete-orphan",
+        order_by="Harvest.harvest_date.desc()",
     )
 
     def __repr__(self) -> str:

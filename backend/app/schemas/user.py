@@ -22,6 +22,7 @@ class UserBase(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", example="Carlos Antonio Ramos")
     role: RoleEnum = Field(default=RoleEnum.PRODUCTOR, description="Assigned user role")
     is_active: bool = Field(default=True, description="Account active status")
+    organization_id: UUID = Field(..., description="ID of the organization (tenant) this user belongs to")
 
 
 class UserCreate(BaseModel):
@@ -32,6 +33,7 @@ class UserCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150, description="Full legal name", example="Carlos Antonio Ramos")
     password: str = Field(..., min_length=8, max_length=100, description="Plain text password (min 8 characters)", example="CafeSV2026!Pass")
     role: RoleEnum = Field(default=RoleEnum.PRODUCTOR, description="User role")
+    organization_id: UUID = Field(..., description="ID of the organization (tenant) this user will belong to")
 
 
 class UserUpdate(BaseModel):

@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.organization import Organization
     from app.models.producer import Producer
 
 
@@ -20,6 +21,12 @@ class User(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+        index=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
     email: Mapped[str] = mapped_column(
@@ -53,7 +60,11 @@ class User(Base):
         nullable=False,
     )
 
-    # 1:1 Relationship with Producer profile
+    # Relationships
+    organization: Mapped["Organization"] = relationship(
+        "Organization",
+        back_populates="users",
+    )
     producer: Mapped[Optional["Producer"]] = relationship(
         "Producer",
         back_populates="user",

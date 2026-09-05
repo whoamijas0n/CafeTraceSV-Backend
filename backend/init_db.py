@@ -5,7 +5,7 @@ from app.db.session import async_engine
 from app.db.base import Base
 
 # Import models to register them with Base.metadata
-from app.models import user, producer, farm, plot
+from app.models import organization, user, producer, farm, plot, harvest, coffee_lot
 
 async def init_db():
     print("🚀 Iniciando creación de tablas en la base de datos...")
@@ -18,7 +18,6 @@ async def init_db():
             # Crear todas las tablas definidas en los modelos
             await conn.run_sync(Base.metadata.create_all)
             print("✅ Todas las tablas han sido creadas exitosamente.")
-
     except Exception as e:
         print(f"❌ Error al crear las tablas: {e}")
 

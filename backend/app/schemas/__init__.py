@@ -30,6 +30,25 @@ from app.schemas.plot import (
     PlotOut,
     PlotUpdate,
 )
+from app.schemas.harvest import (
+    HarvestBase,
+    HarvestCreate,
+    HarvestOut,
+    HarvestUpdate,
+)
+from app.schemas.coffee_lot import (
+    CoffeeLotBase,
+    CoffeeLotCreate,
+    CoffeeLotOut,
+    CoffeeLotUpdate,
+)
+from app.schemas.trace import (
+    TraceFarm,
+    TraceHarvest,
+    TraceOut,
+    TracePlot,
+    TraceProducer,
+)
 
 __all__ = [
     # User
@@ -60,4 +79,20 @@ __all__ = [
     "PlotFeatureProperties",
     "PlotFeatureGeoJSON",
     "PlotFeatureCollectionGeoJSON",
+    # Harvest
+    "HarvestBase",
+    "HarvestCreate",
+    "HarvestOut",
+    "HarvestUpdate",
+    # CoffeeLot
+    "CoffeeLotBase",
+    "CoffeeLotCreate",
+    "CoffeeLotOut",
+    "CoffeeLotUpdate",
+    # Trace
+    "TraceProducer",
+    "TraceFarm",
+    "TracePlot",
+    "TraceHarvest",
+    "TraceOut",
 ]

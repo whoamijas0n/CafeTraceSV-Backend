@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash, verify_password
+from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserOut
 
@@ -18,15 +19,26 @@ router = APIRouter()
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
     summary="Registrar un nuevo usuario",
-    description="Crea una nueva cuenta de usuario en el sistema (Productor, Técnico o Administrador).",
+    description="Crea una nueva cuenta de usuario en el sistema (Productor, Técnico o Administrador), ligada a una organización existente.",
 )
 async def register(
     user_in: UserCreate,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """
-    Register a new user in the platform.
+    Register a new user in the platform, under an existing organization.
     """
+    # Verify the organization exists before creating the user
+    org_stmt = select(Organization).where(Organization.id == user_in.organization_id)
+    org_result = await db.execute(org_stmt)
+    organization = org_result.scalar_one_or_none()
+
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La organización indicada no existe. Créala primero con POST /organizations.",
+        )
+
     # Check if email is already taken
     stmt = select(User).where(User.email == user_in.email)
     result = await db.execute(stmt)
@@ -40,6 +52,7 @@ async def register(
 
     # Create new user record
     new_user = User(
+        organization_id=user_in.organization_id,
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
         full_name=user_in.full_name,
